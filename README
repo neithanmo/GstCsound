@@ -1,0 +1,16 @@
+WHAT IT IS
+----------
+
+Welcome csound!!
+
+This plugin has two elements, this plugin uses  csound for audio processing and/or audio source:
+
+csoundfilter: is a audio filter/effect, using csound as audio engine
+
+csoundsrc: is a audio src.
+
+
+For install this plugin, you need to have csound installed on your system. and copy the file libcsound64.pc into pkg-config folder.
+ 
+
+

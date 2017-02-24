@@ -1,0 +1,5 @@
+{ global:
+gst_csoundfilter_get_type;
+gst_csoundsrc_get_type;
+gst_plugin_desc;
+local: *; };

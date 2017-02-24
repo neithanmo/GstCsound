@@ -1,0 +1,11 @@
+prefix=/usr/lib
+iprefix=/usr/local/include
+libdir=${prefix}
+includedir=${iprefix}/csound
+ 
+Name: libcsound64
+Description: main library for Csound
+Version: 1:6.08
+Libs: -L${libdir} -lcsound64 
+Cflags: -I${includedir}/csound
+
