@@ -1,4 +1,4 @@
-/* GStreamer soundtouch plugin
+/* GStreamer csound plugin
  * Copyright (C) 2017 Natanael Mojica <neithanmo@gmail.com>
  *
  * This library is free software; you can redistribute it and/or

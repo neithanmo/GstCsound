@@ -34,14 +34,12 @@
 #include "config.h"
 #endif
 
-#include <gst/gst.h>
-#include <gst/base/gstbasesrc.h>
 #include "gstcsoundsrc.h"
 
 
 #define ALLOWED_CAPS \
     "audio/x-raw,"                                                 \
-    " format=(string){"GST_AUDIO_NE(F32)","GST_AUDIO_NE(F64)"}," \
+    " format=(string){"GST_AUDIO_NE(F32)","GST_AUDIO_NE(F64)"},"   \
     " rate=(int)[1,MAX],"                                          \
     " channels=(int)[1,MAX],"                                      \
     " layout=(string) interleaved"
@@ -64,8 +62,6 @@ static void gst_csoundsrc_dispose (GObject * object);
 static void gst_csoundsrc_finalize (GObject * object);
 
 /*virtual functions */
-//static GstCaps *gst_csoundsrc_get_caps (GstBaseSrc * src, GstCaps * filter);
-//static gboolean gst_csoundsrc_negotiate (GstBaseSrc * src);
 static GstCaps *gst_csoundsrc_fixate (GstBaseSrc * src, GstCaps * caps);
 static gboolean gst_csoundsrc_set_caps (GstBaseSrc * src, GstCaps * caps);
 static gboolean gst_csoundsrc_start (GstBaseSrc * src);
@@ -73,8 +69,6 @@ static gboolean gst_csoundsrc_stop (GstBaseSrc * src);
 static void gst_csoundsrc_get_times (GstBaseSrc * src, GstBuffer * buffer,
     GstClockTime * start, GstClockTime * end);
 static gboolean gst_csoundsrc_is_seekable (GstBaseSrc * src);
-//static gboolean gst_csoundsrc_query (GstBaseSrc * src, GstQuery * query);
-//static gboolean gst_csoundsrc_event (GstBaseSrc * src, GstEvent * event);
 static GstFlowReturn gst_csoundsrc_fill (GstBaseSrc * src, guint64 offset,
     guint size, GstBuffer * buf);
 static void gst_csoundsrc_get_csamples_double(GstCsoundsrc *csoundsrc, gdouble *data);
@@ -140,7 +134,7 @@ gst_csoundsrc_class_init (GstCsoundsrcClass * klass)
       PROP_SAMPLES_PER_BUFFER, g_param_spec_int ("samplesperbuffer",
           "Samples per buffer",
           "Number of samples in each outgoing buffer, set this property to your csound "
-           "ksmps value for low latency output. samplesperbuffer not be lower than ksmps ! ",1, 
+           "ksmps/2 value for low latency output. samplesperbuffer not be lower than ksmps/2 ! ",1, 
            G_MAXINT, DEFAULT_SAMPLES_PER_BUFFER,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   

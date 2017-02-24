@@ -1,5 +1,5 @@
 /* GStreamer
- * Copyright (C) 2017 FIXME <fixme@example.com>
+ * Copyright (C) 2017 <neithanmo@gmail.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -20,6 +20,7 @@
 #ifndef _GST_CSOUNDSRC_H_
 #define _GST_CSOUNDSRC_H_
 
+#include <gst/gst.h>
 #include <gst/base/gstbasesrc.h>
 #include <gst/audio/audio.h>
 #include <csound/csound.h>

@@ -57,7 +57,6 @@ struct _GstCsoundFilter
 
 struct _GstCsoundFilterClass
 {
-  //GstAudioFilterClass base_csoundfilter_class;
   GstAudioFilterClass parent;
 };
 
