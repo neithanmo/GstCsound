@@ -407,11 +407,9 @@ gst_csoundsrc_get_times (GstBaseSrc * src, GstBuffer * buffer,
 static gboolean
 gst_csoundsrc_is_seekable (GstBaseSrc * src)
 {
- // not seekeable !!
   return FALSE;
 }
 
-/* ask the subclass to fill the buffer with data from offset and size */
 static GstFlowReturn
 gst_csoundsrc_fill (GstBaseSrc * basesrc, guint64 offset,
     guint length, GstBuffer * buffer)
@@ -443,31 +441,24 @@ gst_csoundsrc_fill (GstBaseSrc * basesrc, guint64 offset,
   next_sample = csoundsrc->next_sample + samples;
   bytes = csoundsrc->samples_to_generate * bpf;
   next_time = gst_util_uint64_scale_int (next_sample, GST_SECOND, samplerate);
-  //GST_LOG_OBJECT (csoundsrc, "samplerate %d", samplerate);
-  /*GST_LOG_OBJECT (csoundsrc, "next_sample %" G_GINT64_FORMAT ", ts %" GST_TIME_FORMAT,
-      next_sample, GST_TIME_ARGS (next_time));*/
-  //GST_LOG_OBJECT(csoundsrc, "length bytes: %d bpf: %d", length, bpf);
+  GST_LOG_OBJECT (csoundsrc, "next_sample %" G_GINT64_FORMAT ", ts %" GST_TIME_FORMAT,
+      next_sample, GST_TIME_ARGS (next_time));
   gst_buffer_set_size (buffer, bytes);
-  /*
-  GST_BUFFER_OFFSET (buffer) = csoundsrc->next_sample;
-  GST_BUFFER_OFFSET_END (buffer) = next_sample;
-  */
   GST_BUFFER_TIMESTAMP (buffer) = csoundsrc->timestamp_offset + next_time;
   GST_BUFFER_DURATION (buffer) = csoundsrc->next_time - next_time;
   
-  /*GST_LOG_OBJECT (csoundsrc, "buffer duration timestamp%" GST_TIME_FORMAT  ", duration %" GST_TIME_FORMAT,
-      GST_TIME_ARGS(csoundsrc->timestamp_offset + next_time), GST_TIME_ARGS (csoundsrc->next_time - next_time));*/
+  GST_LOG_OBJECT (csoundsrc, "buffer duration timestamp%" GST_TIME_FORMAT  ", duration %" GST_TIME_FORMAT,
+      GST_TIME_ARGS(csoundsrc->timestamp_offset + next_time), GST_TIME_ARGS (csoundsrc->next_time - next_time));
   
   gst_object_sync_values (GST_OBJECT (csoundsrc), GST_BUFFER_TIMESTAMP (buffer));
   
   csoundsrc->next_time = next_time;
   csoundsrc->next_sample = next_sample;
 
-  /*GST_LOG_OBJECT (csoundsrc, "generating %u samples at ts %" GST_TIME_FORMAT,
+  GST_LOG_OBJECT (csoundsrc, "generating %u samples at ts %" GST_TIME_FORMAT,
       csoundsrc->samples_to_generate,
-      GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)));*/
+      GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)));
   gst_buffer_map (buffer, &map, GST_MAP_READWRITE);
-  //GST_LOG("num pos %d", map.size/bpf);
   csoundsrc->process (csoundsrc, map.data);
   gdouble *data = (gdouble *)map.data;
   gint i;
@@ -492,7 +483,6 @@ static void gst_csoundsrc_get_csamples_float(GstCsoundsrc *csoundsrc, gfloat *da
   for (i = 0; i < ciclos; i++) {
     memcpy (data, csoundsrc->csound_output, bytes_to_move);
     csoundsrc->end_of_score = csoundPerformKsmps (csoundsrc->csound);
-    //memmove (data, csoundsrc->csound_output, bytes_to_move);
     if(ciclos != 1)
          data = data + csoundsrc->ksmps * csoundsrc->channels;
   }
@@ -553,29 +543,3 @@ gst_csoundsrc_messages (CSOUND * csound, int attr, const char *format, va_list v
   g_free (result);
 
 }
-
-
-  
-   /*   for (i = 0; i < ciclos; i++) {
-    memcpy (data, csoundsrc->csound_output, bytes_to_move);
-    csoundsrc->end_of_score = csoundPerformKsmps (csoundsrc->csound);
-    //memmove (data, csoundsrc->csound_output, bytes_to_move);
-    if(ciclos != 1)
-         data = data + csoundsrc->ksmps * csoundsrc->channels;
-  }
-  for(i=0; i<csoundsrc->samples_per_buffer;i++){
-      for (j = 0; j < csoundsrc->channels; j++){
-          if(k<csoundsrc->ksmps){
-              data[i*csoundsrc->channels + j] = 
-              csoundsrc->csound_output[k*csoundsrc->channels + j]*scale;
-              // /csoundGet0dBFS(csoundsrc->csound);//csoundGet0dBFS(csoundsrc->csound);
-              csoundsrc->csound_output[k*csoundsrc->channels + j]=0.0;
-              k++;
-          }
-          else{
-              k = 0;
-              csoundsrc->end_of_score = csoundPerformKsmps (csoundsrc->csound);
-          }
-        }
-      }
-      */
