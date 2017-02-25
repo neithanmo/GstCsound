@@ -64,6 +64,9 @@ static void gst_csoundfilter_messages (CSOUND * csound, int attr, const char *fo
     va_list valist);
 static GstCaps *gst_csoundfilter_transform_caps (GstBaseTransform * base,
     GstPadDirection direction, GstCaps * caps, GstCaps * filter);
+
+/* Filter signals and args */
+/* Filter signals and args */
 enum
 {
   /* FILL ME */
@@ -189,7 +192,8 @@ gst_csoundfilter_setup (GstAudioFilter * filter, const GstAudioInfo * info)
   int result = csoundCompileCsd (csoundfilter->csound, csoundfilter->csd_name);
 csoundStart(csoundfilter->csound);
   if (result) {
-    GST_ERROR_OBJECT(csoundfilter, "cant to compile the csd file");
+    GST_ELEMENT_ERROR (csoundfilter, RESOURCE, OPEN_READ,
+        ("%s", csoundfilter->csd_name), (NULL));
     ret = FALSE;
   }
   csoundfilter->ksmps = csoundGetKsmps (csoundfilter->csound);
@@ -323,6 +327,13 @@ gst_csoundfilter_transform_double (GstCsoundFilter * csoundfilter,
     idata = idata + csoundfilter->ksmps * channels;
     sample = sample + csoundfilter->ksmps;
   }
+  if ((num_samples % csoundfilter->ksmps) != 0) {
+    memmove (csoundfilter->spin, idata,
+        (num_samples - sample) * sizeof (gdouble) * channels);
+    csoundPerformKsmps (csoundfilter->csound);
+    memmove (idata, csoundfilter->spout,
+        (num_samples - sample) * sizeof (gdouble) * channels);
+  }
 }
 
 static void
@@ -342,6 +353,13 @@ gst_csoundfilter_transform_float (GstCsoundFilter * csoundfilter,
     memmove (idata, csoundfilter->spout, bytes_to_move);
     idata = idata + csoundfilter->ksmps * channels;
     sample = sample + csoundfilter->ksmps;
+  }
+  if ((num_samples % csoundfilter->ksmps) != 0) {
+    memmove (csoundfilter->spin, idata,
+        (num_samples - sample) * sizeof (gfloat) * channels);
+    csoundPerformKsmps (csoundfilter->csound);
+    memmove (idata, csoundfilter->spout,
+        (num_samples - sample) * sizeof (gfloat) * channels);
   }
 }
 
