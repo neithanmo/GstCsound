@@ -1,4 +1,4 @@
-/* GStreamer csound plugin
+/* GStreamer soundtouch plugin
  * Copyright (C) 2017 Natanael Mojica <neithanmo@gmail.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -25,12 +25,14 @@
 #include <csound/csound.h>
 #include "gstcsoundfilter.h"
 #include "gstcsoundsrc.h"
+#include "gstcsoundsink.h"
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
   return gst_element_register (plugin, "csoundfilter", GST_RANK_NONE, GST_TYPE_CSOUNDFILTER)
-         && gst_element_register (plugin, "csoundsrc", GST_RANK_NONE,GST_TYPE_CSOUNDSRC);
+         && gst_element_register (plugin, "csoundsrc", GST_RANK_NONE,GST_TYPE_CSOUNDSRC)
+         && gst_element_register (plugin, "csoundsink", GST_RANK_NONE,GST_TYPE_CSOUNDSINK);
 
 }
 
