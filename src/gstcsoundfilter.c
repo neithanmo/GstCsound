@@ -53,8 +53,8 @@ static void gst_csoundfilter_finalize (GObject * object);
 
 static gboolean gst_csoundfilter_setup (GstAudioFilter * filter,
     const GstAudioInfo * info);
-static GstFlowReturn gst_csoundfilter_transform_ip (GstBaseTransform * base,
-    GstBuffer * buf);
+static GstFlowReturn gst_csoundfilter_transform (GstBaseTransform * trans,
+    GstBuffer * inbuf, GstBuffer * outbuf);
 static void gst_csoundfilter_transform_double (GstCsoundFilter * filter,
     gdouble *idata, guint num_samples);
 static void
@@ -136,8 +136,9 @@ gst_csoundfilter_class_init (GstCsoundFilterClass * klass)
       "Natanael Mojica <neithanmo@gmail.com>");
   gobject_class->finalize = GST_DEBUG_FUNCPTR (gst_csoundfilter_finalize);
   audio_filter_class->setup = GST_DEBUG_FUNCPTR (gst_csoundfilter_setup);
-  base_transform_class->transform_ip =
-      GST_DEBUG_FUNCPTR (gst_csoundfilter_transform_ip);
+
+  base_transform_class->transform =
+      GST_DEBUG_FUNCPTR (gst_csoundfilter_transform);
   base_transform_class->transform_ip_on_passthrough = FALSE;
   base_transform_class->transform_caps=
       GST_DEBUG_FUNCPTR (gst_csoundfilter_transform_caps);
@@ -146,7 +147,9 @@ gst_csoundfilter_class_init (GstCsoundFilterClass * klass)
 static void
 gst_csoundfilter_init (GstCsoundFilter * csoundfilter)
 {
-  gst_base_transform_set_in_place (GST_BASE_TRANSFORM (csoundfilter), TRUE);
+    gst_base_transform_set_in_place (GST_BASE_TRANSFORM (csoundfilter), FALSE);
+  csoundfilter->in_adapter = gst_adapter_new();
+  //csoundfilter->out_adapter = gst_adapter_new();
 }
 
 void
@@ -286,55 +289,56 @@ gst_csoundfilter_transform_caps (GstBaseTransform * base,
     
 }
 
+
 static GstFlowReturn
-gst_csoundfilter_transform_ip (GstBaseTransform * trans, GstBuffer * inbuf)
+gst_csoundfilter_transform (GstBaseTransform * trans, GstBuffer * inbuf,
+    GstBuffer * outbuf)
 {
   GstCsoundFilter *csoundfilter = GST_CSOUNDFILTER (trans);
   guint num_samples;
   GstClockTime timestamp, stream_time;
-  GstMapInfo imap;
+  GstMapInfo omap;
   
+  guint channels = GST_AUDIO_FILTER_CHANNELS (csoundfilter);
+  gint bytes = csoundfilter->ksmps * channels * sizeof(gdouble);
+  gst_buffer_ref(inbuf);
   timestamp = GST_BUFFER_TIMESTAMP (inbuf);
   stream_time =
       gst_segment_to_stream_time (&trans->segment, GST_FORMAT_TIME, timestamp);
   if (GST_CLOCK_TIME_IS_VALID (stream_time))
     gst_object_sync_values (GST_OBJECT (csoundfilter), stream_time);
+  
+  gst_adapter_push (csoundfilter->in_adapter, inbuf);
+  gst_buffer_map(outbuf, &omap, GST_MAP_WRITE);
+  if (GST_CLOCK_TIME_IS_VALID (stream_time))
+    gst_object_sync_values (GST_OBJECT (csoundfilter), stream_time);
 
-  gst_buffer_map (inbuf, &imap, GST_MAP_READWRITE);
-  num_samples =
-      imap.size / (GST_AUDIO_FILTER_BPS (csoundfilter) *
-      GST_AUDIO_FILTER_CHANNELS (csoundfilter));
-  csoundfilter->process (csoundfilter, imap.data, num_samples);
-  gst_buffer_unmap (inbuf, &imap);
+  csoundfilter->process (csoundfilter, omap.data, bytes);
   return GST_FLOW_OK;
 }
 
+
 static void
 gst_csoundfilter_transform_double (GstCsoundFilter * csoundfilter,
-    gdouble * idata, guint num_samples)
+    gdouble * odata, guint num_samples)
 {
   csoundfilter->spin = csoundGetSpin (csoundfilter->csound);
   csoundfilter->spout = csoundGetSpout (csoundfilter->csound);
   guint channels = GST_AUDIO_FILTER_CHANNELS (csoundfilter);
-  guint i;
-  guint sample = 0;
-  guint bytes_to_move = csoundfilter->ksmps * sizeof (gdouble) * channels;
-  guint ciclos = num_samples / (csoundfilter->ksmps);
-  for (i = 0; i < ciclos; i++) {
-    memmove (csoundfilter->spin, idata, bytes_to_move);
+  //gdouble *odata;
+  gdouble *idata;
+  //odata = gst_adapter_map(csoundfilter->out_adapter, num_samples);
+  while(gst_adapter_available(csoundfilter->in_adapter) >= num_samples) {
+    idata = gst_adapter_map(csoundfilter->in_adapter, num_samples);
+    memmove (csoundfilter->spin, idata, num_samples);
     csoundPerformKsmps (csoundfilter->csound);
-    memmove (idata, csoundfilter->spout, bytes_to_move);
-    idata = idata + csoundfilter->ksmps * channels;
-    sample = sample + csoundfilter->ksmps;
-  }
-  if ((num_samples % csoundfilter->ksmps) != 0) {
-    memmove (csoundfilter->spin, idata,
-        (num_samples - sample) * sizeof (gdouble) * channels);
-    csoundPerformKsmps (csoundfilter->csound);
-    memmove (idata, csoundfilter->spout,
-        (num_samples - sample) * sizeof (gdouble) * channels);
+    memmove (odata, csoundfilter->spout, num_samples);
+    gst_adapter_unmap(csoundfilter->in_adapter);
+    gst_adapter_flush (csoundfilter->in_adapter, num_samples);
+    odata = odata + csoundfilter->ksmps * channels;
   }
 }
+
 
 static void
 gst_csoundfilter_transform_float (GstCsoundFilter * csoundfilter,
