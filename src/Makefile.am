@@ -16,7 +16,7 @@ plugin_LTLIBRARIES = libgstcsound.la
 ## Plugin 1
 
 # sources used to compile this plug-in
-libgstcsound_la_SOURCES = gstcsoundfilter.c plugin.c gstcsoundfilter.h gstcsoundsrc.c gstcsoundsrc.h
+libgstcsound_la_SOURCES = gstcsoundfilter.c plugin.c gstcsoundfilter.h gstcsoundsrc.c gstcsoundsrc.h gstcsoundsink.c gstcsoundsink.h
 
 # compiler and linker flags used to compile this plugin, set in configure.ac
 libgstcsound_la_CFLAGS = $(GST_CFLAGS) $(CSOUND_CFLAGS)
@@ -28,4 +28,4 @@ libgstcsound_la_LIBTOOLFLAGS = --tag=disable-static
 
 
 # headers we need but don't want installed
-noinst_HEADERS = gstcsoundfilter.h gstcsoundsrc.h
+noinst_HEADERS = gstcsoundfilter.h gstcsoundsrc.h gstcsoundsink.h
