@@ -26,22 +26,18 @@
 #include <csound/csound.h>
 
 G_BEGIN_DECLS
-
 #define GST_TYPE_CSOUNDSRC   (gst_csoundsrc_get_type())
 #define GST_CSOUNDSRC(obj)   (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_CSOUNDSRC,GstCsoundsrc))
 #define GST_CSOUNDSRC_CLASS(klass)   (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_CSOUNDSRC,GstCsoundsrcClass))
 #define GST_IS_CSOUNDSRC(obj)   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_CSOUNDSRC))
 #define GST_IS_CSOUNDSRC_CLASS(obj)   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_CSOUNDSRC))
-
-
-
 typedef struct _GstCsoundsrc GstCsoundsrc;
 typedef struct _GstCsoundsrcClass GstCsoundsrcClass;
 
 typedef void (*csoundMessageCallback) (CSOUND *, int attr, const char *format,
     va_list valist);
 
-typedef void (*csoundsrcProcessFunc) (GstCsoundsrc *, MYFLT * );
+typedef void (*csoundsrcProcessFunc) (GstCsoundsrc *, MYFLT *);
 
 struct _GstCsoundsrc
 {
@@ -55,20 +51,20 @@ struct _GstCsoundsrc
   gint pack_size;
   GstAudioInfo info;
   gint channels;
-  
+
   MYFLT *csound_output;
   gint samples_per_buffer;
   guint64 samples_to_generate;
   guint ksmps;
-  
+
   GstClockTimeDiff timestamp_offset;
-  GstClockTime next_time;               /* next timestamp */
-  gint64 next_sample;                   /* next sample to send */
-  gint64 next_byte;                     /* next byte to send */
+  GstClockTime next_time;       /* next timestamp */
+  gint64 next_sample;           /* next sample to send */
+  gint64 next_byte;             /* next byte to send */
   gint64 sample_stop;
   GMutex lock;
   gint end_of_score;
-  
+
 };
 
 
@@ -80,5 +76,4 @@ struct _GstCsoundsrcClass
 GType gst_csoundsrc_get_type (void);
 
 G_END_DECLS
-
 #endif

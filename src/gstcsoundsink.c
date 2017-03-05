@@ -17,9 +17,8 @@
  * Boston, MA 02110-1335, USA.
  */
 /**
- * SECTION:element-openalsink
- * @see_also: csoundsrc
- * @see_also: csoundfilter
+ * SECTION:element-csoundsink
+ * @see_also: #csoundsrc, #csoundfilter
  * @short_description: capture raw audio samples through Csound
  *
  * This element plays raw audio samples through Csound.
@@ -61,7 +60,8 @@ static gint gst_csoundsink_write (GstAudioSink * sink, gpointer data,
     guint length);
 static guint gst_csoundsink_delay (GstAudioSink * sink);
 static void gst_csoundsink_reset (GstAudioSink * sink);
-static void gst_csoundsink_messages (CSOUND * csound, int attr, const char *format, va_list valist);
+static void gst_csoundsink_messages (CSOUND * csound, int attr,
+    const char *format, va_list valist);
 
 enum
 {
@@ -76,15 +76,15 @@ GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS ("audio/x-raw,format=F64LE,rate=[1,max],"
-      "channels=[1,max],layout=interleaved")
+        "channels=[1,max],layout=interleaved")
     );
 
 
 /* class initialization */
 
 G_DEFINE_TYPE_WITH_CODE (GstCsoundsink, gst_csoundsink, GST_TYPE_AUDIO_SINK,
-  GST_DEBUG_CATEGORY_INIT (gst_csoundsink_debug_category, "csoundsink", 0,
-  "debug category for csoundsink element"));
+    GST_DEBUG_CATEGORY_INIT (gst_csoundsink_debug_category, "csoundsink", 0,
+        "debug category for csoundsink element"));
 
 static void
 gst_csoundsink_class_init (GstCsoundsinkClass * klass)
@@ -94,12 +94,12 @@ gst_csoundsink_class_init (GstCsoundsinkClass * klass)
 
   /* Setting up pads and setting metadata should be moved to
      base_class_init if you intend to subclass this class. */
-  gst_element_class_add_static_pad_template (GST_ELEMENT_CLASS(klass),
+  gst_element_class_add_static_pad_template (GST_ELEMENT_CLASS (klass),
       &gst_csoundsink_sink_template);
-  
+
   gobject_class->set_property = gst_csoundsink_set_property;
   gobject_class->get_property = gst_csoundsink_get_property;
-  
+
   g_object_class_install_property (gobject_class, PROP_LOCATION,
       g_param_spec_string ("location", "Location",
           "Location of the csd file used for csound", NULL,
@@ -107,8 +107,7 @@ gst_csoundsink_class_init (GstCsoundsinkClass * klass)
 
   gst_element_class_set_static_metadata (GST_ELEMENT_CLASS (klass),
       "Csound audio sink", "Sink/audio",
-      "Output audio to csound",
-      "Natanael Mojica <neithanmo@gmail.com>");
+      "Output audio to csound", "Natanael Mojica <neithanmo@gmail.com>");
 
   gobject_class->set_property = gst_csoundsink_set_property;
   gobject_class->get_property = gst_csoundsink_get_property;
@@ -125,7 +124,7 @@ gst_csoundsink_class_init (GstCsoundsinkClass * klass)
 }
 
 static void
-gst_csoundsink_init (GstCsoundsink *csoundsink)
+gst_csoundsink_init (GstCsoundsink * csoundsink)
 {
 }
 
@@ -183,9 +182,9 @@ gst_csoundsink_finalize (GObject * object)
   GstCsoundsink *csoundsink = GST_CSOUNDSINK (object);
 
   GST_DEBUG_OBJECT (csoundsink, "finalize");
-  if(csoundsink->csound){
-     csoundCleanup (csoundsink->csound);
-     csoundDestroy (csoundsink->csound);
+  if (csoundsink->csound) {
+    csoundCleanup (csoundsink->csound);
+    csoundDestroy (csoundsink->csound);
   }
 
   /* clean up object here */
@@ -214,22 +213,22 @@ gst_csoundsink_prepare (GstAudioSink * sink, GstAudioRingBufferSpec * spec)
   int result = csoundCompileCsd (csoundsink->csound, csoundsink->csd_name);
   if (result) {
     GST_ELEMENT_ERROR (csoundsink, RESOURCE, OPEN_READ,
-        ("%s", csoundsink->csd_name), NULL);  
+        ("%s", csoundsink->csd_name), NULL);
     return FALSE;
   }
   csoundsink->ksmps = csoundGetKsmps (csoundsink->csound);
   csoundsink->channels = csoundGetNchnlsInput (csoundsink->csound);
-  csoundsink->bpf = GST_AUDIO_INFO_BPF(&spec->info);
-  int rate = GST_AUDIO_INFO_RATE(&spec->info);
-  if(csoundsink->ksmps %2 != 0){
-      GST_WARNING_OBJECT(csoundsink, "csound ksmps is not a power-of-two");
+  csoundsink->bpf = GST_AUDIO_INFO_BPF (&spec->info);
+  int rate = GST_AUDIO_INFO_RATE (&spec->info);
+  if (csoundsink->ksmps % 2 != 0) {
+    GST_WARNING_OBJECT (csoundsink, "csound ksmps is not a power-of-two");
   }
-  csoundStart(csoundsink->csound);
-  
+  csoundStart (csoundsink->csound);
+
   GST_DEBUG_OBJECT (csoundsink, "prepare");
-  spec->segsize = sizeof(gdouble)*csoundsink->channels * csoundsink->ksmps;
+  spec->segsize = sizeof (gdouble) * csoundsink->channels * csoundsink->ksmps;
   spec->latency_time = gst_util_uint64_scale (spec->segsize,
-(GST_SECOND / GST_USECOND), rate * csoundsink->bpf);
+      (GST_SECOND / GST_USECOND), rate * csoundsink->bpf);
   spec->segtotal = spec->buffer_time / spec->latency_time;
 
   GST_DEBUG_OBJECT (csoundsink, "buffer time: %" G_GINT64_FORMAT " usec",
@@ -271,7 +270,7 @@ gst_csoundsink_write (GstAudioSink * sink, gpointer data, guint length)
   csoundsink->csound_input = csoundGetSpin (csoundsink->csound);
   memcpy (csoundsink->csound_input, data, length);
   gint ret = csoundPerformKsmps (csoundsink->csound);
-  if(ret){
+  if (ret) {
     GST_ELEMENT_ERROR (csoundsink, RESOURCE, WRITE,
         ("Score finished in csoundPerformKsmps()"), NULL);
     return 0;
@@ -295,13 +294,14 @@ static void
 gst_csoundsink_reset (GstAudioSink * sink)
 {
   GstCsoundsink *csoundsink = GST_CSOUNDSINK (sink);
-  csoundReset(csoundsink->csound);
+  csoundReset (csoundsink->csound);
   GST_DEBUG_OBJECT (csoundsink, "reset");
 
 }
 
 static void
-gst_csoundsink_messages (CSOUND * csound, int attr, const char *format, va_list valist)
+gst_csoundsink_messages (CSOUND * csound, int attr, const char *format,
+    va_list valist)
 {
   char **result = NULL;
   vasprintf (&result, format, valist);
