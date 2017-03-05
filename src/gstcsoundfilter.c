@@ -56,12 +56,12 @@ static gboolean gst_csoundfilter_setup (GstAudioFilter * filter,
 static GstFlowReturn gst_csoundfilter_transform (GstBaseTransform * trans,
     GstBuffer * inbuf, GstBuffer * outbuf);
 static void gst_csoundfilter_transform_double (GstCsoundFilter * filter,
-    gdouble *idata, guint num_samples);
+    gdouble * idata, guint num_samples);
 static void
 gst_csoundfilter_transform_float (GstCsoundFilter * csoundfilter,
     gfloat * idata, guint num_samples);
-static void gst_csoundfilter_messages (CSOUND * csound, int attr, const char *format,
-    va_list valist);
+static void gst_csoundfilter_messages (CSOUND * csound, int attr,
+    const char *format, va_list valist);
 static GstCaps *gst_csoundfilter_transform_caps (GstBaseTransform * base,
     GstPadDirection direction, GstCaps * caps, GstCaps * filter);
 
@@ -85,7 +85,7 @@ enum
     " rate=(int)[1,MAX],"                                          \
     " channels=(int)[1,MAX],"                                      \
     " layout=(string) interleaved"
-        
+
 /* pad templates */
 static GstStaticPadTemplate gst_csoundfilter_src_template =
 GST_STATIC_PAD_TEMPLATE ("src",
@@ -115,7 +115,7 @@ gst_csoundfilter_class_init (GstCsoundFilterClass * klass)
   GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
   GstBaseTransformClass *base_transform_class =
       GST_BASE_TRANSFORM_CLASS (klass);
-      
+
   GstAudioFilterClass *audio_filter_class = GST_AUDIO_FILTER_CLASS (klass);
   gst_element_class_add_static_pad_template (GST_ELEMENT_CLASS (klass),
       &gst_csoundfilter_src_template);
@@ -140,15 +140,15 @@ gst_csoundfilter_class_init (GstCsoundFilterClass * klass)
   base_transform_class->transform =
       GST_DEBUG_FUNCPTR (gst_csoundfilter_transform);
   base_transform_class->transform_ip_on_passthrough = FALSE;
-  base_transform_class->transform_caps=
+  base_transform_class->transform_caps =
       GST_DEBUG_FUNCPTR (gst_csoundfilter_transform_caps);
 }
 
 static void
 gst_csoundfilter_init (GstCsoundFilter * csoundfilter)
 {
-    gst_base_transform_set_in_place (GST_BASE_TRANSFORM (csoundfilter), FALSE);
-  csoundfilter->in_adapter = gst_adapter_new();
+  gst_base_transform_set_in_place (GST_BASE_TRANSFORM (csoundfilter), FALSE);
+  csoundfilter->in_adapter = gst_adapter_new ();
   //csoundfilter->out_adapter = gst_adapter_new();
 }
 
@@ -193,7 +193,7 @@ gst_csoundfilter_setup (GstAudioFilter * filter, const GstAudioInfo * info)
   csoundSetMessageCallback (csoundfilter->csound,
       (csoundMessageCallback) gst_csoundfilter_messages);
   int result = csoundCompileCsd (csoundfilter->csound, csoundfilter->csd_name);
-csoundStart(csoundfilter->csound);
+  csoundStart (csoundfilter->csound);
   if (result) {
     GST_ELEMENT_ERROR (csoundfilter, RESOURCE, OPEN_READ,
         ("%s", csoundfilter->csd_name), (NULL));
@@ -202,21 +202,22 @@ csoundStart(csoundfilter->csound);
   csoundfilter->ksmps = csoundGetKsmps (csoundfilter->csound);
   channels = csoundGetNchnlsInput (csoundfilter->csound);
   if ((channels != GST_AUDIO_INFO_CHANNELS (info)) && !result) {
-    GST_ERROR_OBJECT (csoundfilter,"Number of channels is not compatible with csounds input channels" 
-          "set your caps with  %d channels", channels);
+    GST_ERROR_OBJECT (csoundfilter,
+        "Number of channels is not compatible with csounds input channels"
+        "set your caps with  %d channels", channels);
     ret = FALSE;
   }
   int size = csoundGetSizeOfMYFLT ();
-  switch (GST_AUDIO_INFO_FORMAT(info)) {
+  switch (GST_AUDIO_INFO_FORMAT (info)) {
     case GST_AUDIO_FORMAT_F64:
-           csoundfilter->process = (GstCsoundFilterProcessFunc)
-            gst_csoundfilter_transform_double;
-          ret = TRUE;
+      csoundfilter->process = (GstCsoundFilterProcessFunc)
+          gst_csoundfilter_transform_double;
+      ret = TRUE;
       break;
     case GST_AUDIO_FORMAT_F32:
-          csoundfilter->process = (GstCsoundFilterProcessFunc)
-            gst_csoundfilter_transform_float;
-            ret = TRUE;
+      csoundfilter->process = (GstCsoundFilterProcessFunc)
+          gst_csoundfilter_transform_float;
+      ret = TRUE;
       break;
     default:
       ret = FALSE;
@@ -234,6 +235,8 @@ gst_csoundfilter_finalize (GObject * object)
      csoundCleanup (csoundfilter->csound);
      csoundDestroy (csoundfilter->csound);
   }
+  g_object_unref(csoundfilter->in_adapter);
+  csoundfilter->in_adapter = NULL;
   G_OBJECT_CLASS (gst_csoundfilter_parent_class)->finalize (object);
 }
 
@@ -247,34 +250,42 @@ gst_csoundfilter_transform_caps (GstBaseTransform * base,
   gint i;
   //GST_DEBUG_OBJECT(GST_CSOUNDFILTER(base), "transform caps");
   /*check if audio format is supported by csound
-   if not, fixing the caps and its audio format */
+     if not, fixing the caps and its audio format */
   res = gst_caps_copy (caps);
-  
-  if(csoundGetSizeOfMYFLT() == 8){
-  for (i = 0; i < gst_caps_get_size (res); i++) {
-    structure = gst_caps_get_structure (res, i);
-    if (direction == GST_PAD_SRC) {
-      GST_INFO_OBJECT (base, "csound only support F64 audio samples - fixed caps");
-      gst_structure_set (structure, "format", G_TYPE_STRING, GST_AUDIO_NE (F64), NULL);
-    } else {
-      GST_INFO_OBJECT (base, "csound only support F64 audio samples - fixed caps");
-      gst_structure_set (structure, "format", G_TYPE_STRING, GST_AUDIO_NE (F64), NULL);
-     }
+
+  if (csoundGetSizeOfMYFLT () == 8) {
+    for (i = 0; i < gst_caps_get_size (res); i++) {
+      structure = gst_caps_get_structure (res, i);
+      if (direction == GST_PAD_SRC) {
+        GST_INFO_OBJECT (base,
+            "csound only support F64 audio samples - fixed caps");
+        gst_structure_set (structure, "format", G_TYPE_STRING,
+            GST_AUDIO_NE (F64), NULL);
+      } else {
+        GST_INFO_OBJECT (base,
+            "csound only support F64 audio samples - fixed caps");
+        gst_structure_set (structure, "format", G_TYPE_STRING,
+            GST_AUDIO_NE (F64), NULL);
+      }
     }
-   }
-  
-  else  if(csoundGetSizeOfMYFLT() == 4){
-  for (i = 0; i < gst_caps_get_size (res); i++) {
-    structure = gst_caps_get_structure (res, i);
-    if (direction == GST_PAD_SRC) {
-      GST_INFO_OBJECT (base, "csound only support F32 audio samples - fixed caps");
-      gst_structure_set (structure, "format", G_TYPE_STRING, GST_AUDIO_NE (F32), NULL);
-    } else {
-      GST_INFO_OBJECT (base,"csound only support F32 audio samples - fixed caps");
-      gst_structure_set (structure, "format", G_TYPE_STRING, GST_AUDIO_NE (F32), NULL);
-     }
-   }
- } 
+  }
+
+  else if (csoundGetSizeOfMYFLT () == 4) {
+    for (i = 0; i < gst_caps_get_size (res); i++) {
+      structure = gst_caps_get_structure (res, i);
+      if (direction == GST_PAD_SRC) {
+        GST_INFO_OBJECT (base,
+            "csound only support F32 audio samples - fixed caps");
+        gst_structure_set (structure, "format", G_TYPE_STRING,
+            GST_AUDIO_NE (F32), NULL);
+      } else {
+        GST_INFO_OBJECT (base,
+            "csound only support F32 audio samples - fixed caps");
+        gst_structure_set (structure, "format", G_TYPE_STRING,
+            GST_AUDIO_NE (F32), NULL);
+      }
+    }
+  }
 
   if (filter) {
     GstCaps *intersection;
@@ -286,7 +297,7 @@ gst_csoundfilter_transform_caps (GstBaseTransform * base,
   }
 
   return res;
-    
+
 }
 
 
@@ -298,18 +309,18 @@ gst_csoundfilter_transform (GstBaseTransform * trans, GstBuffer * inbuf,
   guint num_samples;
   GstClockTime timestamp, stream_time;
   GstMapInfo omap;
-  
+
   guint channels = GST_AUDIO_FILTER_CHANNELS (csoundfilter);
-  gint bytes = csoundfilter->ksmps * channels * sizeof(gdouble);
-  gst_buffer_ref(inbuf);
+  gint bytes = csoundfilter->ksmps * channels * sizeof (gdouble);
+  gst_buffer_ref (inbuf);
   timestamp = GST_BUFFER_TIMESTAMP (inbuf);
   stream_time =
       gst_segment_to_stream_time (&trans->segment, GST_FORMAT_TIME, timestamp);
   if (GST_CLOCK_TIME_IS_VALID (stream_time))
     gst_object_sync_values (GST_OBJECT (csoundfilter), stream_time);
-  
+
   gst_adapter_push (csoundfilter->in_adapter, inbuf);
-  gst_buffer_map(outbuf, &omap, GST_MAP_WRITE);
+  gst_buffer_map (outbuf, &omap, GST_MAP_WRITE);
   if (GST_CLOCK_TIME_IS_VALID (stream_time))
     gst_object_sync_values (GST_OBJECT (csoundfilter), stream_time);
 
@@ -328,12 +339,12 @@ gst_csoundfilter_transform_double (GstCsoundFilter * csoundfilter,
   //gdouble *odata;
   gdouble *idata;
   //odata = gst_adapter_map(csoundfilter->out_adapter, num_samples);
-  while(gst_adapter_available(csoundfilter->in_adapter) >= num_samples) {
-    idata = gst_adapter_map(csoundfilter->in_adapter, num_samples);
+  while (gst_adapter_available (csoundfilter->in_adapter) >= num_samples) {
+    idata = gst_adapter_map (csoundfilter->in_adapter, num_samples);
     memmove (csoundfilter->spin, idata, num_samples);
     csoundPerformKsmps (csoundfilter->csound);
     memmove (odata, csoundfilter->spout, num_samples);
-    gst_adapter_unmap(csoundfilter->in_adapter);
+    gst_adapter_unmap (csoundfilter->in_adapter);
     gst_adapter_flush (csoundfilter->in_adapter, num_samples);
     odata = odata + csoundfilter->ksmps * channels;
   }
@@ -368,7 +379,8 @@ gst_csoundfilter_transform_float (GstCsoundFilter * csoundfilter,
 }
 
 static void
-gst_csoundfilter_messages (CSOUND * csound, int attr, const char *format, va_list valist)
+gst_csoundfilter_messages (CSOUND * csound, int attr, const char *format,
+    va_list valist)
 {
   char **result = NULL;
   vasprintf (&result, format, valist);
