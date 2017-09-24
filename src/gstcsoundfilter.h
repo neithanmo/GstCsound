@@ -1,5 +1,5 @@
 /* GStreamer
- * Copyright (C) 2017 Natanael Mojica <neithanmo@gmail.com>
+ * Copyright (C) 2017 FIXME <fixme@example.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -20,29 +20,32 @@
 #ifndef _GST_CSOUNDFILTER_H_
 #define _GST_CSOUNDFILTER_H_
 
-#include <gst/gst.h>
 #include <gst/base/gstbasetransform.h>
 #include <gst/audio/audio.h>
-#include <gst/audio/gstaudiofilter.h>
 #include <csound/csound.h>
 
 G_BEGIN_DECLS
+
 #define GST_TYPE_CSOUNDFILTER   (gst_csoundfilter_get_type())
-#define GST_CSOUNDFILTER(obj)   (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_CSOUNDFILTER,GstCsoundFilter))
-#define GST_CSOUNDFILTER_CLASS(klass)   (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_CSOUNDFILTER,GstCsoundFilterClass))
+#define GST_CSOUNDFILTER(obj)   (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_CSOUNDFILTER,GstCsoundfilter))
+#define GST_CSOUNDFILTER_CLASS(klass)   (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_CSOUNDFILTER,GstCsoundfilterClass))
 #define GST_IS_CSOUNDFILTER(obj)   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_CSOUNDFILTER))
 #define GST_IS_CSOUNDFILTER_CLASS(obj)   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_CSOUNDFILTER))
-typedef struct _GstCsoundFilter GstCsoundFilter;
-typedef struct _GstCsoundFilterClass GstCsoundFilterClass;
 
-typedef void (*GstCsoundFilterProcessFunc) (GstCsoundFilter *, gdouble * inbuf,
-    guint samples);
+typedef struct _GstCsoundfilter GstCsoundfilter;
+typedef struct _GstCsoundfilterClass GstCsoundfilterClass;
+
+typedef void (*GstCsoundFilterProcessFunc) (GstCsoundfilter *, MYFLT * ,
+    guint , guint );
+
 typedef void (*csoundMessageCallback) (CSOUND *, int attr, const char *format,
     va_list valist);
 
-struct _GstCsoundFilter
+
+struct _GstCsoundfilter
 {
-  GstAudioFilter base_csoundfilter;
+  GstBaseTransform base_csoundfilter;
+
   CSOUND *csound;
   gchar *csd_name;
 
@@ -50,21 +53,23 @@ struct _GstCsoundFilter
 
   GstCsoundFilterProcessFunc process;
   GstAdapter *in_adapter;
-  GstAdapter *out_adapter;
   guint64 prev_offset;
   MYFLT *spin;
   MYFLT *spout;
-  guint ksmps;
+  guint ksmps,
+        cs_ochannels,
+        cs_ichannels;
   gint16 end_score;
+
 };
 
-struct _GstCsoundFilterClass
+struct _GstCsoundfilterClass
 {
-  //GstAudioFilterClass base_csoundfilter_class;
-  GstAudioFilterClass parent;
+  GstBaseTransformClass base_csoundfilter_class;
 };
 
 GType gst_csoundfilter_get_type (void);
 
 G_END_DECLS
+
 #endif
