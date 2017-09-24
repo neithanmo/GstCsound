@@ -216,6 +216,7 @@ gst_csoundsink_prepare (GstAudioSink * sink, GstAudioRingBufferSpec * spec)
         ("%s", csoundsink->csd_name), NULL);
     return FALSE;
   }
+  
   csoundsink->ksmps = csoundGetKsmps (csoundsink->csound);
   csoundsink->channels = csoundGetNchnlsInput (csoundsink->csound);
   csoundsink->bpf = GST_AUDIO_INFO_BPF (&spec->info);
@@ -226,7 +227,7 @@ gst_csoundsink_prepare (GstAudioSink * sink, GstAudioRingBufferSpec * spec)
   csoundStart (csoundsink->csound);
 
   GST_DEBUG_OBJECT (csoundsink, "prepare");
-  spec->segsize = sizeof (gdouble) * csoundsink->channels * csoundsink->ksmps;
+  spec->segsize = sizeof (MYFLT) * csoundsink->channels * csoundsink->ksmps;
   spec->latency_time = gst_util_uint64_scale (spec->segsize,
       (GST_SECOND / GST_USECOND), rate * csoundsink->bpf);
   spec->segtotal = spec->buffer_time / spec->latency_time;

@@ -1,5 +1,5 @@
 /* GStreamer
- * Copyright (C) 2017 <neithanmo@gmail.com>
+ * Copyright (C) 2017 Natanael Mojica Jimenez  <neithanmo@gmail.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -53,14 +53,12 @@ struct _GstCsoundsrc
   gint channels;
 
   MYFLT *csound_output;
-  gint samples_per_buffer;
   guint64 samples_to_generate;
   guint ksmps;
 
   GstClockTimeDiff timestamp_offset;
   GstClockTime next_time;       /* next timestamp */
   gint64 next_sample;           /* next sample to send */
-  gint64 next_byte;             /* next byte to send */
   gint64 sample_stop;
   GMutex lock;
   gint end_of_score;

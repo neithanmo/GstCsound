@@ -73,10 +73,8 @@ static void gst_csoundsrc_get_times (GstBaseSrc * src, GstBuffer * buffer,
 static gboolean gst_csoundsrc_is_seekable (GstBaseSrc * src);
 static GstFlowReturn gst_csoundsrc_fill (GstBaseSrc * src, guint64 offset,
     guint size, GstBuffer * buf);
-static void gst_csoundsrc_get_csamples_double (GstCsoundsrc * csoundsrc,
-    gdouble * data);
-static void gst_csoundsrc_get_csamples_float (GstCsoundsrc * csoundsrc,
-    gfloat * data);
+static void gst_csoundsrc_get_csamples(GstCsoundsrc * csoundsrc,
+    MYFLT * data);
 static void gst_csoundsrc_messages (CSOUND * csound, int attr,
     const char *format, va_list valist);
 
@@ -85,8 +83,7 @@ enum
   PROP_0,
   PROP_LOCATION,
   PROP_IS_LIVE,
-  PROP_TIMESTAMP_OFFSET,
-  PROP_SAMPLES_PER_BUFFER
+  PROP_TIMESTAMP_OFFSET
 };
 
 static GstStaticPadTemplate gst_csoundsrc_src_template =
@@ -133,14 +130,6 @@ gst_csoundsrc_class_init (GstCsoundsrcClass * klass)
           G_MAXINT64, DEFAULT_TIMESTAMP_OFFSET,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class,
-      PROP_SAMPLES_PER_BUFFER, g_param_spec_int ("samplesperbuffer",
-          "Samples per buffer",
-          "Number of samples in each outgoing buffer, set this property to your csound "
-          "ksmps/2 value for low latency output. samplesperbuffer not be lower than ksmps/2 ! ",
-          1, G_MAXINT, DEFAULT_SAMPLES_PER_BUFFER,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
   gst_element_class_set_static_metadata (GST_ELEMENT_CLASS (klass),
       "Csound audio source", "Source/audio",
       "Input audio through Csound", "Natanael Mojica <neithanmo@gmail.com>");
@@ -163,7 +152,8 @@ gst_csoundsrc_init (GstCsoundsrc * csoundsrc)
   gst_base_src_set_format (GST_BASE_SRC (csoundsrc), GST_FORMAT_TIME);
   gst_base_src_set_live (GST_BASE_SRC (csoundsrc), DEFAULT_IS_LIVE);
   gst_base_src_set_blocksize (GST_BASE_SRC (csoundsrc), -1);
-  csoundsrc->samples_per_buffer = DEFAULT_SAMPLES_PER_BUFFER;
+
+  csoundsrc->process = (csoundsrcProcessFunc) gst_csoundsrc_get_csamples;
   csoundsrc->timestamp_offset = DEFAULT_TIMESTAMP_OFFSET;
 }
 
@@ -184,12 +174,6 @@ gst_csoundsrc_set_property (GObject * object, guint property_id,
       break;
     case PROP_TIMESTAMP_OFFSET:
       csoundsrc->timestamp_offset = g_value_get_int64 (value);
-      break;
-    case PROP_SAMPLES_PER_BUFFER:
-      csoundsrc->samples_per_buffer = g_value_get_int (value);
-      gst_base_src_set_blocksize (GST_BASE_SRC_CAST (csoundsrc),
-          GST_AUDIO_INFO_BPF (&csoundsrc->info) *
-          csoundsrc->samples_per_buffer);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -213,9 +197,6 @@ gst_csoundsrc_get_property (GObject * object, guint property_id,
       g_value_set_boolean (value,
           gst_base_src_is_live (GST_BASE_SRC (csoundsrc)));
       break;
-    case PROP_SAMPLES_PER_BUFFER:
-      g_value_set_int (value, csoundsrc->samples_per_buffer);
-      break;
     case PROP_TIMESTAMP_OFFSET:
       g_value_set_int64 (value, csoundsrc->timestamp_offset);
       break;
@@ -229,6 +210,7 @@ void
 gst_csoundsrc_dispose (GObject * object)
 {
   GstCsoundsrc *csoundsrc = GST_CSOUNDSRC (object);
+  csoundsrc->csound_output = NULL;
 
   GST_DEBUG_OBJECT (csoundsrc, "dispose");
 
@@ -277,16 +259,12 @@ gst_csoundsrc_fixate (GstBaseSrc * src, GstCaps * caps)
         "csound only support F64 audio samples - fixed caps");
     gst_structure_set (structure, "format", G_TYPE_STRING, GST_AUDIO_NE (F64),
         NULL);
-    csoundsrc->process =
-        (csoundsrcProcessFunc) gst_csoundsrc_get_csamples_double;
   }
 
   else if (csoundGetSizeOfMYFLT () == 4) {
     GST_INFO_OBJECT (src, "csound only support F32 audio samples - fixed caps");
     gst_structure_set (structure, "format", G_TYPE_STRING, GST_AUDIO_NE (F32),
         NULL);
-    csoundsrc->process =
-        (csoundsrcProcessFunc) gst_csoundsrc_get_csamples_float;
   }
 
   /* fixate to channels setting in csound side */
@@ -320,9 +298,7 @@ gst_csoundsrc_set_caps (GstBaseSrc * src, GstCaps * caps)
 
   csoundsrc->info = info;
 
-  gst_base_src_set_blocksize (src,
-      GST_AUDIO_INFO_BPF (&info) * csoundsrc->samples_per_buffer *
-      csoundsrc->channels);
+  gst_base_src_set_blocksize (src, GST_AUDIO_INFO_BPF (&info) * csoundsrc->ksmps * csoundsrc->channels);
   return TRUE;
 
   /* ERROR */
@@ -341,7 +317,6 @@ static gboolean
 gst_csoundsrc_start (GstBaseSrc * src)
 {
   GstCsoundsrc *csoundsrc = GST_CSOUNDSRC (src);
-  guint channels;
   csoundsrc->csound = csoundCreate (NULL);
   csoundSetMessageCallback (csoundsrc->csound,
       (csoundMessageCallback) gst_csoundsrc_messages);
@@ -360,9 +335,10 @@ gst_csoundsrc_start (GstBaseSrc * src)
   GST_DEBUG_OBJECT (csoundsrc, "ksmps: %d , channels: %d", csoundsrc->ksmps,
       csoundsrc->channels);
   csoundsrc->next_sample = 0;
-  csoundsrc->next_byte = 0;
   csoundsrc->next_time = 0;
   csoundStart (csoundsrc->csound);
+  
+  csoundsrc->csound_output = csoundGetSpout (csoundsrc->csound);
   GST_DEBUG_OBJECT (csoundsrc, "start");
 
   return TRUE;
@@ -386,7 +362,6 @@ static void
 gst_csoundsrc_get_times (GstBaseSrc * src, GstBuffer * buffer,
     GstClockTime * start, GstClockTime * end)
 {
-  GstCsoundsrc *csoundsrc = GST_CSOUNDSRC (src);
   if (gst_base_src_is_live (src)) {
     GstClockTime timestamp = GST_BUFFER_TIMESTAMP (buffer);
 
@@ -419,12 +394,12 @@ static GstFlowReturn
 gst_csoundsrc_fill (GstBaseSrc * basesrc, guint64 offset,
     guint length, GstBuffer * buffer)
 {
+    
   GstCsoundsrc *csoundsrc = GST_CSOUNDSRC (basesrc);
 
   GstClockTime next_time;
-  gint64 next_sample, next_byte;
+  gint64 next_sample;
   gint bytes, samples;
-  GstElementClass *eclass;
   GstMapInfo map;
   gint samplerate, bpf;
 
@@ -439,24 +414,19 @@ gst_csoundsrc_fill (GstBaseSrc * basesrc, guint64 offset,
   bpf = GST_AUDIO_INFO_BPF (&csoundsrc->info);
 
   if (length == -1)
-    samples = csoundsrc->samples_per_buffer;
+    samples = csoundsrc->ksmps * csoundsrc->channels;
   else
     samples = length / bpf;
+  
   csoundsrc->samples_to_generate = samples;
+
   next_sample = csoundsrc->next_sample + samples;
   bytes = csoundsrc->samples_to_generate * bpf;
   next_time = gst_util_uint64_scale_int (next_sample, GST_SECOND, samplerate);
-  GST_LOG_OBJECT (csoundsrc,
-      "next_sample %" G_GINT64_FORMAT ", ts %" GST_TIME_FORMAT, next_sample,
-      GST_TIME_ARGS (next_time));
+  
   gst_buffer_set_size (buffer, bytes);
   GST_BUFFER_TIMESTAMP (buffer) = csoundsrc->timestamp_offset + next_time;
   GST_BUFFER_DURATION (buffer) = csoundsrc->next_time - next_time;
-
-  GST_LOG_OBJECT (csoundsrc,
-      "buffer duration timestamp%" GST_TIME_FORMAT ", duration %"
-      GST_TIME_FORMAT, GST_TIME_ARGS (csoundsrc->timestamp_offset + next_time),
-      GST_TIME_ARGS (csoundsrc->next_time - next_time));
 
   gst_object_sync_values (GST_OBJECT (csoundsrc),
       GST_BUFFER_TIMESTAMP (buffer));
@@ -464,63 +434,34 @@ gst_csoundsrc_fill (GstBaseSrc * basesrc, guint64 offset,
   csoundsrc->next_time = next_time;
   csoundsrc->next_sample = next_sample;
 
-  GST_LOG_OBJECT (csoundsrc, "generating %u samples at ts %" GST_TIME_FORMAT,
-      csoundsrc->samples_to_generate,
-      GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)));
+  GST_LOG_OBJECT (csoundsrc, "generating %lu samples at ts %" GST_TIME_FORMAT,
+      csoundsrc->samples_to_generate, GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)));
+  
   gst_buffer_map (buffer, &map, GST_MAP_READWRITE);
   csoundsrc->process (csoundsrc, map.data);
-  gdouble *data = (gdouble *) map.data;
-  gint i;
+  MYFLT *data = (MYFLT *) map.data;
   /* ouput scaling */
   gdouble scale = (1.0 / 32767.0);
-  for (i = 0; i < csoundsrc->samples_to_generate * csoundsrc->channels; i++) {
+  
+  for (gint i = 0; i < csoundsrc->samples_to_generate * csoundsrc->channels; i++) {
     *data++ *= scale;
   }
+  
   gst_buffer_unmap (buffer, &map);
-
   g_mutex_unlock (&csoundsrc->lock);
+  
   return GST_FLOW_OK;
 }
 
 static void
-gst_csoundsrc_get_csamples_float (GstCsoundsrc * csoundsrc, gfloat * data)
+gst_csoundsrc_get_csamples (GstCsoundsrc * csoundsrc, MYFLT * data)
 {
-
-  csoundsrc->csound_output = csoundGetSpout (csoundsrc->csound);
-  gint i, j;
-  guint bytes_to_move =
-      csoundsrc->ksmps * sizeof (gdouble) * csoundsrc->channels;
-  guint ciclos = csoundsrc->samples_to_generate / (csoundsrc->ksmps);
-  for (i = 0; i < ciclos; i++) {
+  guint bytes_to_move = csoundsrc->ksmps * sizeof (data) * csoundsrc->channels;
+  guint loops_to_fill = csoundsrc->samples_to_generate / (csoundsrc->ksmps);
+  for (gint i = 0; i < loops_to_fill; i++) {
     memcpy (data, csoundsrc->csound_output, bytes_to_move);
     csoundsrc->end_of_score = csoundPerformKsmps (csoundsrc->csound);
-    if (ciclos != 1)
-      data = data + csoundsrc->ksmps * csoundsrc->channels;
-  }
-  gint size = csoundsrc->channels * csoundsrc->samples_to_generate;
-  for (i = 0; i < csoundsrc->samples_to_generate; i++) {
-    for (j = 0; j < csoundsrc->channels; j++) {
-      data[i * csoundsrc->channels + j] =
-          data[i * csoundsrc->channels +
-          j] / csoundGet0dBFS (csoundsrc->csound);
-    }
-  }
-
-}
-
-static void
-gst_csoundsrc_get_csamples_double (GstCsoundsrc * csoundsrc, gdouble * data)
-{
-  csoundsrc->csound_output = csoundGetSpout (csoundsrc->csound);
-  gint i, j;
-  gdouble scale = 1.0 / csoundGet0dBFS (csoundsrc->csound);
-  guint bytes_to_move =
-      csoundsrc->ksmps * sizeof (gdouble) * csoundsrc->channels;
-  guint ciclos = csoundsrc->samples_to_generate / (csoundsrc->ksmps);
-  for (i = 0; i < ciclos; i++) {
-    memcpy (data, csoundsrc->csound_output, bytes_to_move);
-    csoundsrc->end_of_score = csoundPerformKsmps (csoundsrc->csound);
-    data = data + csoundsrc->ksmps * csoundsrc->channels;
+    data += csoundsrc->ksmps * csoundsrc->channels;
   }
 }
 
@@ -529,7 +470,7 @@ static void
 gst_csoundsrc_messages (CSOUND * csound, int attr, const char *format,
     va_list valist)
 {
-  char **result = NULL;
+  char *result = NULL;
   vasprintf (&result, format, valist);
   switch (attr) {
     case CSOUNDMSG_ERROR:
