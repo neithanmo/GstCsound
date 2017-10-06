@@ -47,8 +47,8 @@ struct _GstCsoundsrc
 
   /* <private> */
   csoundsrcProcessFunc process;
-  GstAudioFormatPack pack_func;
-  gint pack_size;
+  //GstAudioFormatPack pack_func;
+  //gint pack_size;
   GstAudioInfo info;
   gint channels;
 
@@ -65,13 +65,16 @@ struct _GstCsoundsrc
 
 };
 
-
 struct _GstCsoundsrcClass
 {
   GstBaseSrcClass base_csoundsrc_class;
 };
 
+GST_EXPORT
 GType gst_csoundsrc_get_type (void);
+
+GST_EXPORT
+CSOUND *gst_csoundsrc_get_instance(GstCsoundsrc *csoundsrc);
 
 G_END_DECLS
 #endif
