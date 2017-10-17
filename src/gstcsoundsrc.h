@@ -44,6 +44,7 @@ struct _GstCsoundsrc
   GstBaseSrc base_csoundsrc;
   CSOUND *csound;
   gchar *csd_name;
+  gboolean loop;
 
   /* <private> */
   csoundsrcProcessFunc process;

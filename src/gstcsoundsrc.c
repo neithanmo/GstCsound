@@ -48,6 +48,7 @@
 
 #define DEFAULT_SAMPLES_PER_BUFFER   1024
 #define DEFAULT_IS_LIVE              FALSE
+#define DEFAULT_LOOP                 FALSE
 #define DEFAULT_TIMESTAMP_OFFSET     G_GINT64_CONSTANT (0)
 
 #define FLOAT_SAMPLES 4
@@ -86,7 +87,8 @@ enum
   PROP_0,
   PROP_LOCATION,
   PROP_IS_LIVE,
-  PROP_TIMESTAMP_OFFSET
+  PROP_TIMESTAMP_OFFSET,
+  PROP_LOOP
 };
 
 static GstStaticPadTemplate gst_csoundsrc_src_template =
@@ -121,16 +123,16 @@ gst_csoundsrc_class_init (GstCsoundsrcClass * klass)
           "Location of the csd file used for csound", NULL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_IS_LIVE,
-      g_param_spec_boolean ("is-live", "Is Live",
-          "Whether to act as a live source", DEFAULT_IS_LIVE,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
   g_object_class_install_property (gobject_class,
       PROP_TIMESTAMP_OFFSET, g_param_spec_int64 ("timestamp-offset",
           "Timestamp offset",
           "An offset added to timestamps set on buffers (in ns)", G_MININT64,
           G_MAXINT64, DEFAULT_TIMESTAMP_OFFSET,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_LOOP,
+          g_param_spec_boolean ("loop", "Loop",
+          "do a loop on the score", FALSE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_set_static_metadata (GST_ELEMENT_CLASS (klass),
@@ -153,7 +155,7 @@ static void
 gst_csoundsrc_init (GstCsoundsrc * csoundsrc)
 {
   gst_base_src_set_format (GST_BASE_SRC (csoundsrc), GST_FORMAT_TIME);
-  gst_base_src_set_live (GST_BASE_SRC (csoundsrc), DEFAULT_IS_LIVE);
+  gst_base_src_set_live (GST_BASE_SRC (csoundsrc), TRUE);
   gst_base_src_set_blocksize (GST_BASE_SRC (csoundsrc), -1);
 
   csoundsrc->csound = csoundCreate (NULL);
@@ -173,13 +175,12 @@ gst_csoundsrc_set_property (GObject * object, guint property_id,
     case PROP_LOCATION:
       csoundsrc->csd_name = g_value_dup_string (value);
       break;
-    case PROP_IS_LIVE:
-      gst_base_src_set_live (GST_BASE_SRC (csoundsrc),
-          g_value_get_boolean (value));
-      break;
     case PROP_TIMESTAMP_OFFSET:
       csoundsrc->timestamp_offset = g_value_get_int64 (value);
       break;
+    case PROP_LOOP:
+        csoundsrc->loop = g_value_get_boolean (value);
+        break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -198,12 +199,11 @@ gst_csoundsrc_get_property (GObject * object, guint property_id,
     case PROP_LOCATION:
       g_value_set_string (value, csoundsrc->csd_name);
       break;
-    case PROP_IS_LIVE:
-      g_value_set_boolean (value,
-          gst_base_src_is_live (GST_BASE_SRC (csoundsrc)));
-      break;
     case PROP_TIMESTAMP_OFFSET:
       g_value_set_int64 (value, csoundsrc->timestamp_offset);
+      break;
+    case PROP_LOOP:
+        g_value_set_boolean (value, csoundsrc->loop);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -400,8 +400,13 @@ gst_csoundsrc_fill (GstBaseSrc * basesrc, guint64 offset,
   g_mutex_lock (&csoundsrc->lock);
 
   if (csoundsrc->end_of_score) {
-    GST_INFO_OBJECT (csoundsrc, "eos");
-    return GST_FLOW_EOS;
+    if(csoundsrc->loop){
+      csoundSetScoreOffsetSeconds(csoundsrc->csound, 0.0);
+      csoundRewindScore(csoundsrc->csound);
+    }else{
+      GST_INFO_OBJECT (csoundsrc, "eos");
+      return GST_FLOW_EOS;
+    }
   }
 
   samplerate = GST_AUDIO_INFO_RATE (&csoundsrc->info);
