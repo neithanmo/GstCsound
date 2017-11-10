@@ -216,7 +216,7 @@ gst_csoundsink_prepare (GstAudioSink * sink, GstAudioRingBufferSpec * spec)
         ("%s", csoundsink->csd_name), NULL);
     return FALSE;
   }
-  
+
   csoundsink->ksmps = csoundGetKsmps (csoundsink->csound);
   csoundsink->channels = csoundGetNchnlsInput (csoundsink->csound);
   csoundsink->bpf = GST_AUDIO_INFO_BPF (&spec->info);
@@ -328,4 +328,8 @@ gst_csoundsink_messages (CSOUND * csound, int attr, const char *format,
   }
   g_free (result);
 
+}
+
+CSOUND *gst_csoundsink_get_instance(GstCsoundsink *csoundsink){
+    return csoundsink->csound;
 }

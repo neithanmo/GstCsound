@@ -55,5 +55,8 @@ struct _GstCsoundsinkClass
 
 GType gst_csoundsink_get_type (void);
 
+GST_EXPORT
+CSOUND *gst_csoundsink_get_instance(GstCsoundsink *csoundsink);
+
 G_END_DECLS
 #endif
