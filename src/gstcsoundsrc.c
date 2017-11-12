@@ -157,9 +157,6 @@ gst_csoundsrc_init (GstCsoundsrc * csoundsrc)
   gst_base_src_set_format (GST_BASE_SRC (csoundsrc), GST_FORMAT_TIME);
   gst_base_src_set_live (GST_BASE_SRC (csoundsrc), TRUE);
   gst_base_src_set_blocksize (GST_BASE_SRC (csoundsrc), -1);
-
-  csoundsrc->csound = csoundCreate (NULL);
-
   csoundsrc->process = (csoundsrcProcessFunc) gst_csoundsrc_get_csamples;
   csoundsrc->timestamp_offset = DEFAULT_TIMESTAMP_OFFSET;
 }
@@ -215,10 +212,7 @@ void
 gst_csoundsrc_dispose (GObject * object)
 {
   GstCsoundsrc *csoundsrc = GST_CSOUNDSRC (object);
-  csoundsrc->csound_output = NULL;
-
   GST_DEBUG_OBJECT (csoundsrc, "dispose");
-
   /* clean up as possible.  may be called multiple times */
   G_OBJECT_CLASS (gst_csoundsrc_parent_class)->dispose (object);
 }
@@ -233,6 +227,7 @@ gst_csoundsrc_finalize (GObject * object)
     csoundStop (csoundsrc->csound);
     csoundCleanup (csoundsrc->csound);
     csoundDestroy (csoundsrc->csound);
+    csoundsrc->csound_output = NULL;
   }
   G_OBJECT_CLASS (gst_csoundsrc_parent_class)->finalize (object);
 }
@@ -315,9 +310,9 @@ gst_csoundsrc_start (GstBaseSrc * src)
 {
   GstCsoundsrc *csoundsrc = GST_CSOUNDSRC (src);
 
+  csoundsrc->csound = csoundCreate (NULL);
   csoundSetMessageCallback (csoundsrc->csound,
       (csoundMessageCallback) gst_csoundsrc_messages);
-
   int result = csoundCompileCsd (csoundsrc->csound, csoundsrc->csd_name);
   if (result) {
     GST_ELEMENT_ERROR (csoundsrc, RESOURCE, OPEN_READ,
