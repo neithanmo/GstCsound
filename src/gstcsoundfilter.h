@@ -70,6 +70,9 @@ struct _GstCsoundfilterClass
 
 GType gst_csoundfilter_get_type (void);
 
+GST_EXPORT
+CSOUND *gst_csoundfilter_get_instance(GstCsoundfilter *csoundfilter);
+
 G_END_DECLS
 
 #endif

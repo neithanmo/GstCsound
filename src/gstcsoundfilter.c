@@ -450,6 +450,9 @@ gst_csoundfilter_transform (GstBaseTransform * trans, GstBuffer * inbuf,
   GST_DEBUG_OBJECT (csoundfilter, "sync to %" GST_TIME_FORMAT,
       GST_TIME_ARGS (timestamp));
 
+  //guint64 scoreTime = gst_gdouble_to_guint64( csoundGetScoreTime(csoundfilter->csound) );
+  gdouble scoreTime = csoundGetScoreTime(csoundfilter->csound);
+  GST_DEBUG_OBJECT (csoundfilter, "csound score time %" GST_TIME_FORMAT, scoreTime );
   stream_time = gst_segment_to_stream_time (&trans->segment, GST_FORMAT_TIME, timestamp);
   if (GST_CLOCK_TIME_IS_VALID (stream_time))
     gst_object_sync_values (GST_OBJECT (csoundfilter), stream_time);
@@ -511,4 +514,8 @@ gst_csoundfilter_messages (CSOUND * csound, int attr, const char *format, va_lis
   }
   g_free (result);
 
+}
+
+CSOUND *gst_csoundfilter_get_instance(GstCsoundfilter *csoundfilter){
+    return csoundfilter->csound;
 }
