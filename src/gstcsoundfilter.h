@@ -60,6 +60,7 @@ struct _GstCsoundfilter
         cs_ochannels,
         cs_ichannels;
   gint16 end_score;
+  gboolean loop;
 
 };
 

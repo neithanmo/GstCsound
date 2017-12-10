@@ -91,7 +91,8 @@ enum
 enum
 {
   PROP_0,
-  PROP_LOCATION
+  PROP_LOCATION,
+  PROP_LOOP
 };
 
 #define ALLOWED_CAPS \
@@ -144,6 +145,13 @@ gst_csoundfilter_class_init (GstCsoundfilterClass * klass)
           "Location of the csd file used by csound", NULL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+   g_object_class_install_property (gobject_class, PROP_LOOP,
+      g_param_spec_boolean ("loop", "Loop",
+           "do a loop on the score", FALSE,
+            G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+
+
   gst_element_class_set_static_metadata (GST_ELEMENT_CLASS (klass),
       "using csound for audio processing", "Filter/Effect/Audio",
       "Inplement a audio filter/effects using csound",
@@ -171,7 +179,7 @@ static void
 gst_csoundfilter_init (GstCsoundfilter *csoundfilter)
 {
   gst_base_transform_set_in_place (GST_BASE_TRANSFORM (csoundfilter), FALSE);
-  csoundfilter->in_adapter = gst_adapter_new();
+  csoundfilter->loop = FALSE;
 }
 
 void
@@ -186,6 +194,9 @@ gst_csoundfilter_set_property (GObject * object, guint property_id,
     case PROP_LOCATION:
       csoundfilter->csd_name = g_value_dup_string (value);
       break;
+    case PROP_LOOP:
+      csoundfilter->loop = g_value_get_boolean (value);
+    break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (csoundfilter, property_id, pspec);
       break;
@@ -204,6 +215,9 @@ gst_csoundfilter_get_property (GObject * object, guint property_id,
     case PROP_LOCATION:
       g_value_set_string (value, csoundfilter->csd_name);
       break;
+    case PROP_LOOP:
+      g_value_set_boolean (value, csoundfilter->loop);
+    break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (csoundfilter, property_id, pspec);
       break;
@@ -367,9 +381,9 @@ gst_csoundfilter_start (GstBaseTransform * trans)
 
   GST_DEBUG_OBJECT (csoundfilter, "start");
 
-
   gboolean ret = TRUE;
   csoundfilter->csound = csoundCreate (NULL);
+  csoundfilter->in_adapter = gst_adapter_new();
 
   csoundSetMessageCallback (csoundfilter->csound,
       (csoundMessageCallback) gst_csoundfilter_messages);
@@ -450,9 +464,6 @@ gst_csoundfilter_transform (GstBaseTransform * trans, GstBuffer * inbuf,
   GST_DEBUG_OBJECT (csoundfilter, "sync to %" GST_TIME_FORMAT,
       GST_TIME_ARGS (timestamp));
 
-  //guint64 scoreTime = gst_gdouble_to_guint64( csoundGetScoreTime(csoundfilter->csound) );
-  gdouble scoreTime = csoundGetScoreTime(csoundfilter->csound);
-  GST_DEBUG_OBJECT (csoundfilter, "csound score time %" GST_TIME_FORMAT, scoreTime );
   stream_time = gst_segment_to_stream_time (&trans->segment, GST_FORMAT_TIME, timestamp);
   if (GST_CLOCK_TIME_IS_VALID (stream_time))
     gst_object_sync_values (GST_OBJECT (csoundfilter), stream_time);
@@ -461,21 +472,24 @@ gst_csoundfilter_transform (GstBaseTransform * trans, GstBuffer * inbuf,
   gst_buffer_unmap(outbuf, &omap);
 
   if (csoundfilter->end_score){
-    GST_DEBUG_OBJECT (csoundfilter, "reached the end of the csound score - sending a eos: %d" ,
-        csoundfilter->end_score);
-    return GST_FLOW_EOS;
+    GST_DEBUG_OBJECT (csoundfilter, "reached the end of the csound score - looking for loop property %d", csoundfilter->end_score);
+    if(csoundfilter->loop){
+      csoundSetScoreOffsetSeconds(csoundfilter->csound, 0.0);
+      csoundRewindScore(csoundfilter->csound);
+    }else{
+      GST_DEBUG_OBJECT (csoundfilter, "End of the csound score - sending a eos");
+      return GST_FLOW_EOS;
+    }
   }
+
   return GST_FLOW_OK;
 }
-
 
 static void
 gst_csoundfilter_trans (GstCsoundfilter * csoundfilter,
     MYFLT * odata, guint in_bytes, guint out_bytes)
 {
-
   MYFLT *idata;
-
   while(gst_adapter_available(csoundfilter->in_adapter) >= in_bytes) {
     idata = gst_adapter_map(csoundfilter->in_adapter, in_bytes);
     memmove (csoundfilter->spin, idata, in_bytes);
