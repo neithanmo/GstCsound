@@ -46,6 +46,8 @@ GST_DEBUG_CATEGORY_STATIC (gst_csoundfilter_debug_category);
 
 #define FLOAT_SAMPLES 4
 #define DOUBLE_SAMPLES 8
+
+#define DEFAULT_LOOP                 FALSE
 /* prototypes */
 
 
@@ -81,12 +83,6 @@ static void
 gst_csoundfilter_trans (GstCsoundfilter * csoundfilter,
     MYFLT * odata, guint in_bytes, guint out_bytes);
 
-/* Filter signals and args */
-enum
-{
-  /* FILL ME */
-  LAST_SIGNAL
-};
 
 enum
 {
@@ -147,7 +143,7 @@ gst_csoundfilter_class_init (GstCsoundfilterClass * klass)
 
    g_object_class_install_property (gobject_class, PROP_LOOP,
       g_param_spec_boolean ("loop", "Loop",
-           "do a loop on the score", FALSE,
+           "do a loop on the score", DEFAULT_LOOP,
             G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
 
@@ -179,7 +175,6 @@ static void
 gst_csoundfilter_init (GstCsoundfilter *csoundfilter)
 {
   gst_base_transform_set_in_place (GST_BASE_TRANSFORM (csoundfilter), FALSE);
-  csoundfilter->loop = FALSE;
 }
 
 void
@@ -271,10 +266,8 @@ gst_csoundfilter_transform_caps (GstBaseTransform * base, GstPadDirection direct
   for (i = 0; i < gst_caps_get_size (res); i++) {
     structure = gst_caps_get_structure (res, i);
     if (direction == GST_PAD_SRC) {
-      GST_INFO_OBJECT (base, "csound only support F64 audio samples on src pad");
       gst_structure_set (structure, "format", G_TYPE_STRING, GST_AUDIO_NE (F64), NULL);
     } else {
-      GST_INFO_OBJECT (base, "csound only support F64 audio samples on sink pad");
       gst_structure_set (structure, "format", G_TYPE_STRING, GST_AUDIO_NE (F64), NULL);
      }
     }
@@ -284,10 +277,8 @@ gst_csoundfilter_transform_caps (GstBaseTransform * base, GstPadDirection direct
   for (i = 0; i < gst_caps_get_size (res); i++) {
     structure = gst_caps_get_structure (res, i);
     if (direction == GST_PAD_SRC) {
-      GST_INFO_OBJECT (base, "csound only support F32 audio samples on src pad");
       gst_structure_set (structure, "format", G_TYPE_STRING, GST_AUDIO_NE (F32), NULL);
     } else {
-      GST_INFO_OBJECT (base,"csound only support F32 audio samples on sink pad");
       gst_structure_set (structure, "format", G_TYPE_STRING, GST_AUDIO_NE (F32), NULL);
      }
    }
@@ -489,16 +480,16 @@ static void
 gst_csoundfilter_trans (GstCsoundfilter * csoundfilter,
     MYFLT * odata, guint in_bytes, guint out_bytes)
 {
-  MYFLT *idata;
-  while(gst_adapter_available(csoundfilter->in_adapter) >= in_bytes) {
-    idata = gst_adapter_map(csoundfilter->in_adapter, in_bytes);
-    memmove (csoundfilter->spin, idata, in_bytes);
+  gsize offset = 0;
+  while( gst_adapter_available_fast(csoundfilter->in_adapter) >= (in_bytes + offset ) ) {
+    gst_adapter_copy(csoundfilter->in_adapter, csoundfilter->spin, offset, in_bytes);
     memmove (odata, csoundfilter->spout, out_bytes);
+    offset += in_bytes;
     csoundfilter->end_score = csoundPerformKsmps (csoundfilter->csound);
-    gst_adapter_unmap(csoundfilter->in_adapter);
-    gst_adapter_flush (csoundfilter->in_adapter, in_bytes);
     odata += csoundfilter->ksmps * csoundfilter->cs_ochannels;
   }
+  gst_adapter_flush (csoundfilter->in_adapter, offset);
+  
 }
 
 static void
