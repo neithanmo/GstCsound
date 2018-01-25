@@ -48,9 +48,8 @@ GST_DEBUG_CATEGORY_STATIC (gst_csoundfilter_debug_category);
 #define DOUBLE_SAMPLES 8
 
 #define DEFAULT_LOOP                 FALSE
+
 /* prototypes */
-
-
 static void gst_csoundfilter_set_property (GObject * object,
     guint property_id, const GValue * value, GParamSpec * pspec);
 static void gst_csoundfilter_get_property (GObject * object,
@@ -146,8 +145,6 @@ gst_csoundfilter_class_init (GstCsoundfilterClass * klass)
            "do a loop on the score", DEFAULT_LOOP,
             G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-
-
   gst_element_class_set_static_metadata (GST_ELEMENT_CLASS (klass),
       "using csound for audio processing", "Filter/Effect/Audio",
       "Inplement a audio filter/effects using csound",
@@ -158,15 +155,11 @@ gst_csoundfilter_class_init (GstCsoundfilterClass * klass)
   base_transform_class->transform_caps = GST_DEBUG_FUNCPTR (gst_csoundfilter_transform_caps);
   base_transform_class->fixate_caps = GST_DEBUG_FUNCPTR (gst_csoundfilter_fixate_caps);
   base_transform_class->accept_caps = GST_DEBUG_FUNCPTR (gst_csoundfilter_accept_caps);
-
   base_transform_class->set_caps = GST_DEBUG_FUNCPTR (gst_csoundfilter_set_caps);
-
   base_transform_class->start = GST_DEBUG_FUNCPTR (gst_csoundfilter_start);
   base_transform_class->transform = GST_DEBUG_FUNCPTR (gst_csoundfilter_transform);
-
   base_transform_class->stop = GST_DEBUG_FUNCPTR (gst_csoundfilter_stop);
   base_transform_class->prepare_output_buffer = GST_DEBUG_FUNCPTR (gst_csoundfilter_prepare_output_buffer);
-
   base_transform_class->transform_ip_on_passthrough = FALSE;
 
 }
@@ -182,8 +175,6 @@ gst_csoundfilter_set_property (GObject * object, guint property_id,
     const GValue * value, GParamSpec * pspec)
 {
   GstCsoundfilter *csoundfilter = GST_CSOUNDFILTER (object);
-
-  GST_DEBUG_OBJECT (csoundfilter, "set_property");
 
   switch (property_id) {
     case PROP_LOCATION:
@@ -204,8 +195,6 @@ gst_csoundfilter_get_property (GObject * object, guint property_id,
 {
   GstCsoundfilter *csoundfilter = GST_CSOUNDFILTER (object);
 
-  GST_DEBUG_OBJECT (csoundfilter, "get_property");
-
   switch (property_id) {
     case PROP_LOCATION:
       g_value_set_string (value, csoundfilter->csd_name);
@@ -224,12 +213,6 @@ gst_csoundfilter_dispose (GObject * object)
 {
   GstCsoundfilter *csoundfilter = GST_CSOUNDFILTER (object);
 
-  GST_DEBUG_OBJECT (csoundfilter, "dispose");
-
-  /* clean up as possible.  may be called multiple times */
-  csoundfilter->spout = NULL;
-  csoundfilter->spin = NULL;
-
   G_OBJECT_CLASS (gst_csoundfilter_parent_class)->dispose (object);
 }
 
@@ -237,13 +220,15 @@ void
 gst_csoundfilter_finalize (GObject * object)
 {
   GstCsoundfilter *csoundfilter = GST_CSOUNDFILTER (object);
-
-  GST_DEBUG_OBJECT (csoundfilter, "finalize");
-
+  
+  csoundfilter->spout = NULL;
+  csoundfilter->spin = NULL;
+  
   if(csoundfilter->csound){
      csoundCleanup (csoundfilter->csound);
      csoundDestroy (csoundfilter->csound);
   }
+  
   g_object_unref(csoundfilter->in_adapter);
   csoundfilter->in_adapter = NULL;
   G_OBJECT_CLASS (gst_csoundfilter_parent_class)->finalize (object);
@@ -286,8 +271,7 @@ gst_csoundfilter_transform_caps (GstBaseTransform * base, GstPadDirection direct
 
   if (filter) {
     GstCaps *intersection;
-    intersection =
-        gst_caps_intersect_full (filter, res, GST_CAPS_INTERSECT_FIRST);
+    intersection = gst_caps_intersect_full (filter, res, GST_CAPS_INTERSECT_FIRST);
     gst_caps_unref (res);
     res = intersection;
     GST_DEBUG_OBJECT (base, "Intersection %" GST_PTR_FORMAT, res);
@@ -303,24 +287,14 @@ gst_csoundfilter_fixate_caps (GstBaseTransform * trans, GstPadDirection directio
 {
   GstCsoundfilter *csoundfilter = GST_CSOUNDFILTER (trans);
 
-  GST_DEBUG_OBJECT (csoundfilter, "fixate_caps");
-
   GstStructure *structure;
   gint rate;
-
   gint caps_channels;
   caps = gst_caps_make_writable (caps);
-
-  GST_DEBUG_OBJECT (csoundfilter, "request negotiation to: %" GST_PTR_FORMAT, caps);
-  GST_DEBUG_OBJECT (csoundfilter, "csound supported caps for the requested pad: %" GST_PTR_FORMAT, othercaps);
-
-
   structure = gst_caps_get_structure (caps, 0);
-
   rate = csoundGetSr (csoundfilter->csound);
   gst_structure_fixate_field_nearest_int (structure, "rate", rate);
   GST_DEBUG_OBJECT (csoundfilter, "fixating samplerate to %d", rate);
-
   /* fixate to channels setting in csound side */
   gst_structure_get_int (structure, "channels", &caps_channels);
 
@@ -328,7 +302,7 @@ gst_csoundfilter_fixate_caps (GstBaseTransform * trans, GstPadDirection directio
     gst_structure_set (structure, "channels", G_TYPE_INT, csoundfilter->cs_ichannels, NULL);
   } else if (direction == GST_PAD_SINK) {
       gst_structure_set (structure, "channels", G_TYPE_INT, csoundfilter->cs_ochannels, NULL);
-    }
+  }
 
   if (caps_channels && caps_channels > 2) {
     if (!gst_structure_has_field_typed (structure, "channel-mask",
@@ -345,9 +319,6 @@ gst_csoundfilter_accept_caps (GstBaseTransform * trans, GstPadDirection directio
     GstCaps * caps)
 {
   GstCsoundfilter *csoundfilter = GST_CSOUNDFILTER (trans);
-
-  GST_DEBUG_OBJECT (csoundfilter, "accept_caps");
-
   return TRUE;
 }
 
@@ -356,10 +327,8 @@ gst_csoundfilter_set_caps (GstBaseTransform * trans, GstCaps * incaps,
     GstCaps * outcaps)
 {
   GstCsoundfilter *csoundfilter = GST_CSOUNDFILTER (trans);
-
-  GST_DEBUG_OBJECT (csoundfilter, "set_caps");
-  GST_DEBUG_OBJECT (csoundfilter, "Configured input caps to: %" GST_PTR_FORMAT, incaps);
-  GST_DEBUG_OBJECT (csoundfilter, "Configured ouput caps to: %" GST_PTR_FORMAT, outcaps);
+  GST_DEBUG_OBJECT (csoundfilter, "csoundfilter input caps configured  to: %" GST_PTR_FORMAT, incaps);
+  GST_DEBUG_OBJECT (csoundfilter, "csoundfilter ouput caps configured  to: %" GST_PTR_FORMAT, outcaps);
   return TRUE;
 }
 
@@ -370,15 +339,11 @@ gst_csoundfilter_start (GstBaseTransform * trans)
 
   GstCsoundfilter *csoundfilter = GST_CSOUNDFILTER (trans);
 
-  GST_DEBUG_OBJECT (csoundfilter, "start");
-
   gboolean ret = TRUE;
   csoundfilter->csound = csoundCreate (NULL);
   csoundfilter->in_adapter = gst_adapter_new();
-
   csoundSetMessageCallback (csoundfilter->csound,
       (csoundMessageCallback) gst_csoundfilter_messages);
-
   int result = csoundCompileCsd (csoundfilter->csound, csoundfilter->csd_name);
   csoundStart(csoundfilter->csound);
   csoundfilter->spin = csoundGetSpin (csoundfilter->csound);
@@ -394,20 +359,14 @@ gst_csoundfilter_start (GstBaseTransform * trans)
   csoundfilter->cs_ochannels = csoundGetNchnls (csoundfilter->csound);
   csoundfilter->cs_ichannels = csoundGetNchnlsInput (csoundfilter->csound);
   csoundfilter->process = gst_csoundfilter_trans;
-
   return ret;
-
 }
 
 static gboolean
 gst_csoundfilter_stop (GstBaseTransform * trans)
 {
   GstCsoundfilter *csoundfilter = GST_CSOUNDFILTER (trans);
-
   csoundStop (csoundfilter->csound);
-
-  GST_DEBUG_OBJECT (csoundfilter, "stop");
-
   return TRUE;
 }
 
@@ -416,21 +375,25 @@ gst_csoundfilter_prepare_output_buffer (GstBaseTransform * base,
     GstBuffer * inbuf, GstBuffer ** outbuf)
 {
   GstCsoundfilter *csoundfilter = GST_CSOUNDFILTER (base);
+  gsize new_size;
 
-  gsize new_size = 0;
-
-  if (csoundfilter->cs_ichannels < csoundfilter->cs_ochannels){
-    new_size = gst_buffer_get_size (inbuf) * 2;
-    *outbuf = gst_buffer_new_allocate (NULL, new_size, NULL);
-  }else if(csoundfilter->cs_ichannels > csoundfilter->cs_ochannels){
-    new_size = gst_buffer_get_size (inbuf) / 2;
-    *outbuf = gst_buffer_new_allocate (NULL, new_size, NULL);
+  if (csoundfilter->cs_ichannels != csoundfilter->cs_ochannels){
+    guint input_bpf = csoundfilter->cs_ichannels * sizeof(MYFLT);
+    guint num_samples = gst_buffer_get_size (inbuf)/input_bpf;
+    new_size = num_samples * sizeof(MYFLT) * csoundfilter->cs_ochannels ;
   }else{
-    *outbuf = gst_buffer_new_allocate (NULL, gst_buffer_get_size (inbuf), NULL);
-                  }
-
+    new_size = gst_buffer_get_size (inbuf);
+  }
+  
+  *outbuf = gst_buffer_new_allocate (NULL, new_size, NULL);
+  
+  if(*outbuf == NULL){
+      GST_ELEMENT_ERROR (csoundfilter, RESOURCE, FAILED,
+        ("%s", "Cant to allocate output buffers"), NULL);
+      return GST_FLOW_ERROR;
+  }
+    
   *outbuf = gst_buffer_make_writable (*outbuf);
-
   return GST_FLOW_OK;
 }
 
@@ -445,10 +408,8 @@ gst_csoundfilter_transform (GstBaseTransform * trans, GstBuffer * inbuf,
   GstMapInfo omap;
   gst_buffer_map(outbuf, &omap, GST_MAP_WRITE);
   gst_adapter_push (csoundfilter->in_adapter, inbuf);
-
   guint in_bytes = csoundfilter->ksmps * csoundfilter->cs_ichannels * sizeof(MYFLT);
   guint out_bytes = csoundfilter->ksmps * csoundfilter->cs_ochannels * sizeof(MYFLT);
-
   gst_buffer_ref(inbuf);
   timestamp = GST_BUFFER_TIMESTAMP (inbuf);
 
@@ -456,6 +417,7 @@ gst_csoundfilter_transform (GstBaseTransform * trans, GstBuffer * inbuf,
       GST_TIME_ARGS (timestamp));
 
   stream_time = gst_segment_to_stream_time (&trans->segment, GST_FORMAT_TIME, timestamp);
+  
   if (GST_CLOCK_TIME_IS_VALID (stream_time))
     gst_object_sync_values (GST_OBJECT (csoundfilter), stream_time);
 
@@ -518,7 +480,6 @@ gst_csoundfilter_messages (CSOUND * csound, int attr, const char *format, va_lis
       break;
   }
   g_free (result);
-
 }
 
 CSOUND *gst_csoundfilter_get_instance(GstCsoundfilter *csoundfilter){
